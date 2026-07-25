@@ -41,6 +41,7 @@ model User {
   paymentAdvances        PaymentAdvance[]
   apiKeys                ApiKey[]
   brandingSettings       BrandingSettings?
+  bankFeedSyncs          BankFeedSync[]
   webhooks               UserWebhook[]
   userBadges             UserBadge[]
   auditEvents            AuditEvent[]
@@ -176,6 +177,24 @@ model BankAccount {
   user          User           @relation(fields: [userId], references: [id])
   withdrawals   Transaction[]  @relation("WithdrawalBank")
   autoSwapRules AutoSwapRule[]
+  feedSync      BankFeedSync?
+}
+
+model BankFeedSync {
+  id            String    @id @default(uuid())
+  userId        String
+  bankAccountId String    @unique
+  status        String    @default("idle") @db.VarChar(20)
+  lastSyncedAt  DateTime?
+  lastError     String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Contact {
