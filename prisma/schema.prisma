@@ -74,6 +74,8 @@ model User {
   clientNotes             ClientNote[]
   clientNoteClients       ClientNote[]    @relation("ClientNotes")
   savedFilters            SavedFilter[]
+  snippets                Snippet[]
+  digestEmailSettings     DigestEmailSettings?
   projects                Project[]
   taxRates                TaxRate[]
   products                Product[]
@@ -1062,6 +1064,31 @@ model ClientNote {
   @@index([userId])
   @@index([clientId])
   @@index([createdAt])
+}
+
+model DigestEmailSettings {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  enabled   Boolean  @default(true)
+  frequency String   @default("weekly") // 'daily' | 'weekly' | 'monthly'
+  lastSentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Snippet {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String   @db.VarChar(150)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model SavedFilter {
