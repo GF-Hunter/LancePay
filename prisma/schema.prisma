@@ -42,6 +42,7 @@ model User {
   apiKeys                ApiKey[]
   brandingSettings       BrandingSettings?
   bankFeedSyncs          BankFeedSync[]
+  plaidAccounts          PlaidAccount[]
   webhooks               UserWebhook[]
   userBadges             UserBadge[]
   auditEvents            AuditEvent[]
@@ -192,6 +193,26 @@ model BankFeedSync {
 
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model PlaidAccount {
+  id              String    @id @default(uuid())
+  userId          String
+  plaidItemId     String    @db.VarChar(255)
+  plaidAccountId  String    @unique @db.VarChar(255)
+  institutionName String    @db.VarChar(255)
+  accountName     String    @db.VarChar(255)
+  mask            String?   @db.VarChar(4)
+  type            String    @db.VarChar(50)
+  subtype         String?   @db.VarChar(50)
+  status          String    @default("active") @db.VarChar(20)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
