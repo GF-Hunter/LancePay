@@ -24,6 +24,8 @@ model User {
   twoFactorSecret  String?
   taxPercentage    Float    @default(0)
   timezone         String?
+  recoveryPhone         String?
+  recoveryPhoneVerified Boolean  @default(false)
   virtualAccount         VirtualAccount?
   wallet                 Wallet?
   bankAccounts           BankAccount[]
@@ -74,9 +76,15 @@ model User {
   clientNotes             ClientNote[]
   clientNoteClients       ClientNote[]    @relation("ClientNotes")
   savedFilters            SavedFilter[]
+  snippets                Snippet[]
+  digestEmailSettings     DigestEmailSettings?
+  loginNotificationSettings LoginNotificationSettings?
+  recoveryPhoneVerifications RecoveryPhoneVerification[]
+  refundOverrides         RefundOverride[]
   projects                Project[]
   taxRates                TaxRate[]
   products                Product[]
+  balanceThresholdAlerts  BalanceThresholdAlert[]
 }
 
 model KycApplication {
@@ -291,6 +299,7 @@ model Invoice {
   lienActive              Boolean               @default(false)
   advances                PaymentAdvance[]
   auditEvents             AuditEvent[]
+  refundOverrides         RefundOverride[]
   isConfidential          Boolean               @default(false)
   encryptedPayload        String?               @db.Text
   decryptionSalt          String?
@@ -459,6 +468,22 @@ model BulkInvoiceJob {
   completedAt  DateTime?
 
   @@index([userId])
+}
+
+model RefundOverride {
+  id           String   @id @default(uuid())
+  invoiceId    String
+  adminId      String
+  amount       Decimal  @db.Decimal(10, 2)
+  reason       String
+  notes        String?  @db.Text
+  status       String   @default("completed")
+  createdAt    DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  admin   User    @relation(fields: [adminId], references: [id])
+
+  @@index([invoiceId])
 }
 
 model Dispute {
@@ -1063,6 +1088,56 @@ model ClientNote {
   @@index([createdAt])
 }
 
+model DigestEmailSettings {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  enabled   Boolean  @default(true)
+  frequency String   @default("weekly") // 'daily' | 'weekly' | 'monthly'
+  lastSentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoginNotificationSettings {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  notifyOnNewDevice Boolean  @default(true)
+  notifyEmail       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RecoveryPhoneVerification {
+  id        String   @id @default(uuid())
+  userId    String
+  phone     String   @db.VarChar(20)
+  code      String   @db.VarChar(10)
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Snippet {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String   @db.VarChar(150)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model SavedFilter {
   id          String   @id @default(uuid())
   userId      String
@@ -1188,6 +1263,22 @@ model WhitelistAddress {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, address])
+  @@index([userId])
+}
+
+model BalanceThresholdAlert {
+  id          String   @id @default(uuid())
+  userId      String
+  currency    String   @default("USD") @db.VarChar(8)
+  direction   String   @db.VarChar(10) // "below" | "above"
+  threshold   Decimal  @db.Decimal(18, 2)
+  enabled     Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
