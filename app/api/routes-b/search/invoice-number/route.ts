@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { verifyAuthToken } from '@/lib/auth'
+import { logger } from '@/lib/logger'
+
+// GET /api/routes-b/search/invoice-number — look up an invoice by (partial) invoice number
+
+const MAX_RESULTS = 20
+
+async function getAuthenticatedUser(request: NextRequest) {
+  const authToken = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!authToken) return null
+  const claims = await verifyAuthToken(authToken)
+  if (!claims) return null
+  return prisma.user.findUnique({ where: { privyId: claims.userId } })
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const user = await getAuthenticatedUser(request)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const q = searchParams.get('q')?.trim()
+    if (!q) {
+      return NextResponse.json({ error: 'q is required' }, { status: 400 })
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        userId: user.id,
+        invoiceNumber: { contains: q, mode: 'insensitive' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_RESULTS,
+      select: {
+        id: true,
+        invoiceNumber: true,
+        clientEmail: true,
+        clientName: true,
+        amount: true,
+        currency: true,
+        status: true,
+        createdAt: true,
+      },
+    })
+
+    return NextResponse.json({
+      invoices: invoices.map((inv) => ({ ...inv, amount: Number(inv.amount) })),
+    })
+  } catch (error) {
+    logger.error({ err: error }, 'Invoice number search error')
+    return NextResponse.json({ error: 'Failed to search invoices' }, { status: 500 })
+  }
+}
