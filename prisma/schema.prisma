@@ -88,6 +88,9 @@ model User {
   balanceThresholdAlerts  BalanceThresholdAlert[]
   automations             Automation[]
   libraryAttachments      LibraryAttachment[]
+  invoiceAttachments      InvoiceAttachment[]
+  creditNotes             CreditNote[]
+  paymentPlans            PaymentPlan[]
 }
 
 model KycApplication {
@@ -314,6 +317,9 @@ model Invoice {
 
   subscriptionId          String?
   subscription            Subscription?         @relation(fields: [subscriptionId], references: [id])
+  attachments             InvoiceAttachment[]
+  creditNotes             CreditNote[]
+  paymentPlan             PaymentPlan?
 }
 
 model Subscription {
@@ -1366,4 +1372,78 @@ model LibraryAttachment {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model InvoiceAttachment {
+  id         String   @id @default(uuid())
+  invoiceId  String
+  uploadedBy String
+  fileName   String   @db.VarChar(255)
+  fileUrl    String   @db.VarChar(512)
+  mimeType   String   @db.VarChar(100)
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+
+  invoice  Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploadedBy], references: [id])
+
+  @@index([invoiceId])
+  @@index([createdAt])
+}
+
+model CreditNote {
+  id           String   @id @default(uuid())
+  userId       String
+  invoiceId    String
+  creditNumber String   @unique
+  amount       Decimal  @db.Decimal(10, 2)
+  currency     String   @default("USD")
+  reason       String
+  status       String   @default("issued")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([userId])
+  @@index([invoiceId])
+  @@index([status])
+}
+
+model PaymentPlan {
+  id               String   @id @default(uuid())
+  userId           String
+  invoiceId        String   @unique
+  totalAmount      Decimal  @db.Decimal(10, 2)
+  currency         String   @default("USD")
+  installmentCount Int
+  frequency        String   @default("monthly")
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user         User                      @relation(fields: [userId], references: [id])
+  invoice      Invoice                   @relation(fields: [invoiceId], references: [id])
+  installments PaymentPlanInstallment[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model PaymentPlanInstallment {
+  id            String    @id @default(uuid())
+  paymentPlanId String
+  sequence      Int
+  amount        Decimal   @db.Decimal(10, 2)
+  dueDate       DateTime
+  status        String    @default("pending")
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  paymentPlan PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentPlanId, sequence])
+  @@index([paymentPlanId])
+  @@index([dueDate])
 }
