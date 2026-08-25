@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GET, PATCH } from './route'
+import { GET, PATCH, DELETE } from './route'
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/db', () => ({
   prisma: {
     user: { findUnique: vi.fn() },
-    automationRule: { findFirst: vi.fn(), update: vi.fn() },
+    automationRule: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
   },
 }))
 vi.mock('@/lib/auth', () => ({ verifyAuthToken: vi.fn() }))
@@ -47,7 +47,15 @@ beforeEach(() => {
   vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser as never)
   vi.mocked(prisma.automationRule.findFirst).mockResolvedValue(mockRule as never)
   vi.mocked(prisma.automationRule.update).mockResolvedValue({ ...mockRule, isActive: false } as never)
+  vi.mocked(prisma.automationRule.delete).mockResolvedValue(mockRule as never)
 })
+
+function makeDelete() {
+  return new NextRequest('http://localhost/api/routes-b/automations/rule-1', {
+    method: 'DELETE',
+    headers: { authorization: 'Bearer token' },
+  })
+}
 
 describe('GET /api/routes-b/automations/[id]', () => {
   it('returns the automation rule', async () => {
@@ -115,5 +123,33 @@ describe('PATCH /api/routes-b/automations/[id]', () => {
     })
     const res = await PATCH(req, { params })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('DELETE /api/routes-b/automations/[id]', () => {
+  it('deletes an automation rule', async () => {
+    const res = await DELETE(makeDelete(), { params })
+    expect(res.status).toBe(204)
+    expect(prisma.automationRule.delete).toHaveBeenCalledWith({ where: { id: 'rule-1' } })
+  })
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(verifyAuthToken).mockResolvedValue(null)
+    const req = new NextRequest('http://localhost/api/routes-b/automations/rule-1', { method: 'DELETE' })
+    const res = await DELETE(req, { params })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 404 when rule does not exist or belongs to another user', async () => {
+    vi.mocked(prisma.automationRule.findFirst).mockResolvedValue(null)
+    const res = await DELETE(makeDelete(), { params })
+    expect(res.status).toBe(404)
+  })
+
+  it('scopes the lookup to the authenticated user (ownership check)', async () => {
+    await DELETE(makeDelete(), { params })
+    expect(prisma.automationRule.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'rule-1', userId: 'user-1' } }),
+    )
   })
 })

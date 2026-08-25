@@ -9,6 +9,7 @@ const VALID_ACTIONS = ['send_email', 'send_notification', 'tag_client', 'create_
 type AutomationRuleDelegate = {
   findFirst: (args: Record<string, unknown>) => Promise<Record<string, unknown> | null>
   update: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
+  delete: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
 }
 
 function getAutomationRuleDelegate(): AutomationRuleDelegate {
@@ -154,4 +155,33 @@ export async function PATCH(
   })
 
   return NextResponse.json({ rule: updated })
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const userId = await getAuthenticatedUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const ruleId = params.id
+  if (!ruleId || !ruleId.trim()) {
+    return NextResponse.json({ error: 'Automation rule id is required' }, { status: 400 })
+  }
+
+  const delegate = getAutomationRuleDelegate()
+  const existing = await delegate.findFirst({
+    where: { id: ruleId, userId },
+    select: { id: true },
+  })
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Automation rule not found' }, { status: 404 })
+  }
+
+  await delegate.delete({ where: { id: ruleId } })
+
+  return new NextResponse(null, { status: 204 })
 }
