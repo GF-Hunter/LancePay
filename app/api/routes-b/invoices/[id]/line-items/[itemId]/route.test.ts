@@ -33,7 +33,10 @@ function makeRequest(
 ) {
   const headers: Record<string, string> = {}
   if (token) headers.authorization = token
-  const init: RequestInit = { method, headers }
+  const init: { method: string; headers: Record<string, string>; body?: string } = {
+    method,
+    headers,
+  }
   if (body !== undefined) {
     headers['content-type'] = 'application/json'
     init.body = typeof body === 'string' ? body : JSON.stringify(body)
