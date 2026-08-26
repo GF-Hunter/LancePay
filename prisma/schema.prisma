@@ -320,6 +320,7 @@ model Invoice {
   attachments             InvoiceAttachment[]
   creditNotes             CreditNote[]
   paymentPlan             PaymentPlan?
+  taxLines                InvoiceTaxLine[]
 }
 
 model Subscription {
@@ -1447,3 +1448,19 @@ model PaymentPlanInstallment {
   @@index([paymentPlanId])
   @@index([dueDate])
 }
+
+model InvoiceTaxLine {
+  id        String   @id @default(uuid())
+  invoiceId String
+  name      String   @db.VarChar(100)
+  rate      Decimal  @db.Decimal(6, 4) // e.g. 0.1000 for 10%
+  amount    Decimal? @db.Decimal(10, 2)
+  taxRateId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
