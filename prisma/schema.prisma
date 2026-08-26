@@ -318,6 +318,7 @@ model Invoice {
   subscriptionId          String?
   subscription            Subscription?         @relation(fields: [subscriptionId], references: [id])
   attachments             InvoiceAttachment[]
+  lineItems               InvoiceLineItem[]
   creditNotes             CreditNote[]
   paymentPlan             PaymentPlan?
 }
@@ -1389,6 +1390,22 @@ model InvoiceAttachment {
 
   @@index([invoiceId])
   @@index([createdAt])
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String   @db.VarChar(500)
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([invoiceId, position])
 }
 
 model CreditNote {
