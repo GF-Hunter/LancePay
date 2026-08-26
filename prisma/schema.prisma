@@ -91,6 +91,8 @@ model User {
   invoiceAttachments      InvoiceAttachment[]
   creditNotes             CreditNote[]
   paymentPlans            PaymentPlan[]
+  discounts               Discount[]
+  refunds                 Refund[]
 }
 
 model KycApplication {
@@ -320,6 +322,7 @@ model Invoice {
   attachments             InvoiceAttachment[]
   creditNotes             CreditNote[]
   paymentPlan             PaymentPlan?
+  refunds                 Refund[]
 }
 
 model Subscription {
@@ -1446,4 +1449,43 @@ model PaymentPlanInstallment {
   @@unique([paymentPlanId, sequence])
   @@index([paymentPlanId])
   @@index([dueDate])
+}
+
+model Discount {
+  id            String    @id @default(uuid())
+  userId        String
+  code          String
+  type          String    @default("percent")
+  value         Decimal   @db.Decimal(10, 2)
+  active        Boolean   @default(true)
+  maxRedemptions Int?
+  redemptions   Int       @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, code])
+  @@index([userId])
+  @@index([active])
+}
+
+model Refund {
+  id          String   @id @default(uuid())
+  userId      String
+  invoiceId   String
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  reason      String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([userId])
+  @@index([invoiceId])
+  @@index([status])
 }
