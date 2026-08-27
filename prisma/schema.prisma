@@ -91,6 +91,10 @@ model User {
   invoiceAttachments      InvoiceAttachment[]
   creditNotes             CreditNote[]
   paymentPlans            PaymentPlan[]
+  discounts               Discount[]
+  refunds                 Refund[]
+  portalSessionsIssued    ClientPortalSession[] @relation("PortalSessionOwner")
+  portalSessionsAsClient  ClientPortalSession[] @relation("PortalSessionClient")
 }
 
 model KycApplication {
@@ -318,6 +322,7 @@ model Invoice {
   subscriptionId          String?
   subscription            Subscription?         @relation(fields: [subscriptionId], references: [id])
   attachments             InvoiceAttachment[]
+  lineItems               InvoiceLineItem[]
   creditNotes             CreditNote[]
   paymentPlan             PaymentPlan?
   taxLines                InvoiceTaxLine[]
@@ -1392,6 +1397,22 @@ model InvoiceAttachment {
   @@index([createdAt])
 }
 
+model InvoiceLineItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String   @db.VarChar(500)
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([invoiceId, position])
+}
+
 model CreditNote {
   id           String   @id @default(uuid())
   userId       String
@@ -1464,3 +1485,85 @@ model InvoiceTaxLine {
   @@index([invoiceId])
 }
 
+model Discount {
+  id            String    @id @default(uuid())
+  userId        String
+  code          String
+  type          String    @default("percent")
+  value         Decimal   @db.Decimal(10, 2)
+  active        Boolean   @default(true)
+  maxRedemptions Int?
+  redemptions   Int       @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, code])
+  @@index([userId])
+  @@index([active])
+}
+
+model Refund {
+  id          String   @id @default(uuid())
+  userId      String
+  invoiceId   String
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  reason      String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([userId])
+  @@index([invoiceId])
+  @@index([status])
+/// A revocable, hashed-token session that lets a freelancer's client access
+/// their self-serve portal. Only the SHA-256 hash of the token is persisted
+/// (mirrors ApiKey.hashedKey); the plaintext token is returned once, at
+/// issuance time, and never stored or logged.
+model ClientPortalSession {
+  id          String    @id @default(uuid())
+  userId      String
+  clientId    String
+  hashedToken String    @unique
+  tokenHint   String    @db.VarChar(12)
+  lastSeenAt  DateTime?
+  revokedAt   DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user   User @relation("PortalSessionOwner", fields: [userId], references: [id], onDelete: Cascade)
+  client User @relation("PortalSessionClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([userId, revokedAt])
+  @@index([hashedToken])
+}
+
+/// A revocable, hashed-token public link that lets anyone with the link view
+/// a single invoice without authenticating. Only the SHA-256 hash of the
+/// token is persisted; the plaintext token is returned once, at generation
+/// time, and never stored or logged.
+model InvoicePublicLink {
+  id          String    @id @default(uuid())
+  invoiceId   String
+  hashedToken String    @unique
+  tokenHint   String    @db.VarChar(12)
+  createdBy   String
+  lastViewedAt DateTime?
+  revokedAt   DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([invoiceId, revokedAt])
+  @@index([hashedToken])
+}
